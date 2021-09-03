@@ -1,0 +1,225 @@
+# import packages
+import pandas as pd
+import numpy as np
+import requests
+from pandas.io.json import json_normalize #special package in pandas
+import json
+import matplotlib.pyplot as plt
+%matplotlib inline
+
+# set API key
+apiKey = "2Ved520AQRPjEhVcLrjoCDl5FrEwTBTya86LmDoX"
+
+# set  parameter
+params = {'api_key': apiKey}
+
+food_list=["turkey", "macaroni and cheese", "mashed potatoes", "bread stuffing", "ham", "sweet potato souffle", "cranberry sauce", "mixed vegetables", "apple pie", "pecan pie"]
+
+# counter that allows us to see which food word is being processed in the loop
+counter = 0
+
+# for each food, pull nutritional value
+
+# use for loop to create api call
+for food in food_list:
+
+    # increment counter for sequence of foods
+    counter=counter+1
+    
+    # send API request -  Web Scraping/APIs
+    response = requests.post(
+        r'https://api.nal.usda.gov/fdc/v1/search',
+        params=params,
+        json={'generalSearchInput': food}
+    )
+    
+    # save to JSON
+    item = response.json()
+    
+    # get total matches (there can be multiple hits for one food keyword, so we need to take the length of the match object to see how many matches we got)
+    l = [i for i in range(len(item['foods']))]
+    
+    # for each match
+    for i in l:
+        # create df of food nutrients across all matches - Data Structures
+        if i == 0: # for the first match, initialize the dataframe
+            rdf = pd.json_normalize(item['foods'][i]['foodNutrients']) # convert json to data frame
+        else: # for subsequent matches, create a dataframe (with a different name to be concatenated)
+            df = pd.json_normalize(item['foods'][i]['foodNutrients'])
+            rdf = pd.concat([rdf,df]) # concatenate dataframes - Data Wrangling 
+
+    # Now we have a dataframe with all the matches for a food word
+    
+    # recode variable values to simplify names
+    rdf['nutrientName'].replace('Energy','Energy',inplace=True)
+    rdf['nutrientName'].replace('Carbohydrate, by difference','Carbs',inplace=True)
+    rdf['nutrientName'].replace('Protein','Protein',inplace=True)
+    rdf['nutrientName'].replace('Fiber, total dietary','Fiber',inplace=True)
+    rdf['nutrientName'].replace('Total lipid (fat)','Fat',inplace=True)
+    rdf['nutrientName'].replace('Sodium, Na','Sodium',inplace=True)
+    rdf['nutrientName'].replace('Fatty acids, total saturated','Sat_Fatty_Acids',inplace=True)
+    rdf['nutrientName'].replace('Calcium, Ca','Calcium',inplace=True)
+    rdf['nutrientName'].replace('Iron, Fe','Iron',inplace=True)
+    rdf['nutrientName'].replace('Sugars, total including NLEA','Sugar',inplace=True)
+    rdf['nutrientName'].replace('Cholesterol','Chol',inplace=True)
+    rdf['nutrientName'].replace('Fatty acids, total trans','Trans_Fatty_Acids',inplace=True)
+    rdf['nutrientName'].replace('Vitamin C, total ascorbic acid','VitaminC',inplace=True)
+    rdf['nutrientName'].replace('Vitamin A, IU','VitaminA',inplace=True)
+    rdf['nutrientName'].replace('Potassium, K','Potassium',inplace=True)
+    rdf['nutrientName'].replace('Fatty acids, total polyunsaturated','Unsat_Fatty_Acids',inplace=True)   
+  
+    # Since we have multiple matches for a food word, lets aggregate to one row per food match/nutrient by finding the average 
+    # nutrient value across all matches
+    # find average nutrient
+    agg_food = rdf[['nutrientName','value']].groupby(['nutrientName']).agg('mean')
+    
+    # reset index
+    agg_food = agg_food.reset_index()
+    
+    # rename columns
+    agg_food.columns = ["nutrientName","Value"]    
+    
+    # subset data to only include the nutrients we want
+    agg_food = agg_food[agg_food["nutrientName"].isin(['Energy','Carbs','Protein','Fiber','Fat'])]
+
+     
+    # set food name into a variable so we know what values each food is associated with
+    agg_food["Food"] = food 
+        
+    # transpose the data so the nutrient values are their own columns
+    new=agg_food.pivot_table(index=["Food"], columns=['nutrientName'], values='Value')
+    
+    # reset the index
+    new.reset_index(inplace=True)
+    
+    # append food match to a dataframe with all foods
+    if counter ==1: # initialize the df
+        all_foods=new
+    else:
+        all_foods=pd.concat([all_foods,new])
+        
+        
+        
+        
+# Is there an association between the amount of protein and energy in a food?
+# Create a scatterplot
+all_foods.plot.scatter(x='Protein',y='Energy')
+
+# Add axis labels
+plt.xlabel("Protein")
+plt.ylabel("Energy")
+
+# add title
+plt.title("RQ1: Is there an association between the amount of protein and energy in a food?")
+
+#There is concentration trend of increasing, but there are also some outliers in the trend.
+
+
+
+
+
+
+
+
+# Which food is the most nutritious and the least nutritious?
+# Create a scatterplot
+all_foods.plot.bar(x='Food',y='Carbs')
+
+# Add axis labels
+plt.xlabel("Food")
+plt.ylabel("Carbs")
+
+# add title
+plt.title("RQ2: Which food has the most carbs and which has low carbs?")
+
+# Mashed potatoes has the most carbs. Turkey and Ham has the least carbs.
+
+
+
+
+
+
+
+
+# Which food has the most energy and which has low energy?
+# Create a scatterplot
+all_foods.plot.bar(x='Food',y='Energy')
+
+# Add axis labels
+plt.xlabel("Food")
+plt.ylabel("Energy")
+
+# add title
+plt.title("RQ2: Which food has the most energy and which has low energy?")
+
+# Pecan Pie has the most energy. Mixed vegetable has the least energy.
+
+
+
+
+
+
+
+
+# Which food has the most fat and which has low fat??
+# Create a scatterplot
+all_foods.plot.bar(x='Food',y='Fat')
+
+# Add axis labels
+plt.xlabel("Food")
+plt.ylabel("Fat")
+
+# add title
+plt.title("RQ2: Which food has the most fat and which has low fat?")
+
+# Pecan pie has the most fat. Mixed vegetable has the least fat.
+
+
+
+
+
+# Which food has the most fiber and which has low fiber?
+# Create a scatterplot
+all_foods.plot.bar(x='Food',y='Fiber')
+
+# Add axis labels
+plt.xlabel("Food")
+plt.ylabel("Fiber")
+
+# add title
+plt.title("RQ2: Which food has the most fiber and which has low fiber?")
+
+# Mashed potatoes has the most fiber. Ham and Turkey have the least fiber.
+
+
+
+
+
+
+
+
+#Which food has the most protein and which has low protein??
+# Create a scatterplot
+all_foods.plot.bar(x='Food',y='Protein')
+
+# Add axis labels
+plt.xlabel("Food")
+plt.ylabel("Protein")
+
+# add title
+plt.title("RQ2: Which food has the most protein and which has low protein?")
+
+# Turkey has the most protein. Canberry sauce and Mixed vegetables have the least protein.
+
+
+# Overall, based on the nutrient value we analyzed, I would consider Mashed potatoes is the most nutritious food compared to other thanksgiving food. The reason is that Mashed potatoes has the most fiber and least fat, which means it keeps your disgesting system clean and healthy.
+# I would also consider macaroni and cheese is the least nutritious food despite the fact that its deliciousness. The reason is that its nutrient value doesn't stand out among all of the thanksgiving food.
+
+
+
+
+
+
+
+
+
